@@ -17,6 +17,11 @@ def triangle_to_transformation(orig_tri, deform_tri):
     return v_tilde * inv(v)
 
 
+def triangle3_to_matrix(triangle):
+    triangle_with_normal = calc_normal(triangle)
+    return triangle_to_matrix(triangle_with_normal)
+
+
 def triangle_to_matrix(triangle):
     v_1, v_2, v_3, v_4 = triangle
     return np.array([v_2 - v_1, v_3 - v_1, v_4 - v_1])
