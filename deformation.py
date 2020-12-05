@@ -30,6 +30,7 @@ def find_source_trans_matrix(mesh, deform):
 
 
 def find_triangle_matrix(mesh):
+    #B = V^(-t)
     V = [(triangle3_to_matrix(mesh.vertices[triangle])) for triangle in mesh.faces]
     V_t = [(v.transpose()) for v in V]
     V_t_inv = [(np.linalg.inv(v_t)) for v_t in V_t]
@@ -39,7 +40,7 @@ def find_triangle_matrix(mesh):
     result = V_t_inv_matrix @ Q_matrix
     return result
 
-
+#the vertices are given in the form of (v1x, v1y, v1z, v2x......v4z) for each triangle change it to (v1x, v2x, v3x, v4x...)
 def find_realignment_matrix(n):
     lines = []
     for i in range(0, 12):
@@ -76,7 +77,6 @@ def main(source, deform_s, target):
     target_mesh = pymesh.load_mesh(target)
     source_deform_matrix = find_source_trans_matrix(source_mesh, source_deforms[0])
     target_deform_matrix = find_target_trans_matrix(target_mesh)
-    find_realignment_matrix(target_mesh.num_faces)
     return
 
 
