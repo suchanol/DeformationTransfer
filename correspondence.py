@@ -4,6 +4,7 @@ from corr_helper import *
 from vertex_formulation import *
 from timeit import default_timer as timer
 import scipy.sparse.linalg
+import corres_resolve
 
 source_mesh = None
 target_mesh = None
@@ -17,7 +18,8 @@ def main(source, target):
     markers = load_markers("default.cons")
 
     tree = closest_point.create_tree(target_mesh)
-    solve_correspondence_problem(tree, markers)
+    deformed_mesh = solve_correspondence_problem(tree, markers)
+    corres_resolve.compute_pairs("face.corres", deformed_mesh, target_mesh)
 
 
 def solve_correspondence_problem(tree, markers):
@@ -33,6 +35,11 @@ def solve_correspondence_problem(tree, markers):
         A_full, b_full = create_full_matrix(source_mesh, weight_s, weight_i, weight_c, closest_points, markers)
 
         deformed_mesh = minimize(A_full, b_full, markers)
+
+    deformed_mesh.add_attribute("face_centroid")
+    deformed_mesh.add_attribute("face_normal")
+
+    return deformed_mesh
 
 
 def minimize(A, b, markers, save_mesh=True):
@@ -69,7 +76,9 @@ def load_meshes(source, target):
     target_mesh.enable_connectivity()
 
     source_mesh.add_attribute("vertex_normal")
+
     target_mesh.add_attribute("face_normal")
+    target_mesh.add_attribute("face_centroid")
 
 
 def set_marker_positions(x, marker):
