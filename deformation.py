@@ -1,4 +1,5 @@
 import pymesh
+import scipy.linalg
 from vertex_formulation import *
 
 
@@ -23,18 +24,61 @@ def save_deformation(result, name):
         pymesh.save_mesh("{}-{:02d}.obj".format(name, i), result[i])
 
 
-def main(source, deform_s):
+def find_source_trans_matrix(mesh, deform):
+    result = get_transformations(mesh, deform.vertices)
+    return result
+
+
+def find_triangle_matrix(mesh):
+    #B = V^(-t)
+    V = [(triangle3_to_matrix(mesh.vertices[triangle])) for triangle in mesh.faces]
+    V_t = [(v.transpose()) for v in V]
+    V_t_inv = [(np.linalg.inv(v_t)) for v_t in V_t]
+    V_t_inv_matrix = scipy.linalg.block_diag(*V_t_inv)
+    Q_matrix = find_realignment_matrix(len(V) // 4)
+    # result = BQMQ^(-1)DP
+    result = V_t_inv_matrix @ Q_matrix
+    return result
+
+#the vertices are given in the form of (v1x, v1y, v1z, v2x......v4z) for each triangle change it to (v1x, v2x, v3x, v4x...)
+def find_realignment_matrix(n):
+    lines = []
+    for i in range(0, 12):
+        line = np.zeros(12)
+        if i < 4:
+            line[i * 3] = 1
+        if 4 <= i < 8:
+            line[1 + ((i * 3) % 12)] = 1
+        if 8 <= i < 12:
+            line[2 + ((i * 3) % 12)] = 1
+        lines.append(line)
+    q = np.array(lines)
+    qs = []
+    for i in range(0, n):
+        qs.append(q)
+    Q = scipy.linalg.block_diag(*qs)
+    return Q
+
+
+def find_target_trans_matrix(target_mesh):
+    V_t_inv = find_triangle_matrix(target_mesh)
+
+    # to be calculated |S - T| where T is given by a combination of matrices B Q M D P
+    # T = BQMQ^(-1)DP
+    # P is the vector of the unknown points of the transformed target mesh
+    # Q is a re-arrangement matrix to change the order of the unknown ( to facilitate calculation only) same for Q^(-1)
+    # D is the matrix of vertices correlation
+    # B is the matrix of the target mesh vectors
+    # M is the transformation of the vector coordinate in the original point coordinate
+def main(source, deform_s, target):
     n, deform_name = deform_s
-    source_deform = load_deformation(n, deform_name)
+    source_deforms = load_deformation(n, deform_name)
     source_mesh = pymesh.load_mesh(source)
-    source_deform_matrices = []
-    i = 0
-    for s in source_deform:
-        source_deform_matrices.append(get_transformations(source_mesh, s.vertices))
-        i += 1
-        print(i)
+    target_mesh = pymesh.load_mesh(target)
+    source_deform_matrix = find_source_trans_matrix(source_mesh, source_deforms[0])
+    target_deform_matrix = find_target_trans_matrix(target_mesh)
     return
 
 
 if __name__ == '__main__':
-    main("horse-01.obj", (48, "res/horse-gallop/horse-gallop"))
+    main("horse_ref_decimate.obj", (2, "res/horse-gallop/horse-gallop"), "camel_ref_decimate.obj")
