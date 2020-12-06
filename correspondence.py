@@ -1,4 +1,5 @@
 import pymesh
+import closest_point
 from corr_helper import *
 from vertex_formulation import *
 from timeit import default_timer as timer
@@ -15,21 +16,47 @@ def main(source, target):
 
     markers = load_markers("default.cons")
 
-    all_triangles = np.append(source_mesh.vertices.flatten(),
-                              [calc_normal(source_mesh.vertices[source_mesh.faces[triangle]])[3]
-                                for triangle in range(source_mesh.num_faces)])
-    all_triangles = set_marker_positions(all_triangles, markers)
-    A, c = create_smoothness_identity_matrix(source_mesh, 1.0, 0.001, markers)
+    tree = closest_point.create_tree(target_mesh)
+    solve_correspondence_problem(tree, markers)
 
+
+def solve_correspondence_problem(tree, markers):
+    weight_s = 1.0
+    weight_i = 0.001
+
+    A, b = create_smoothness_identity_matrix(source_mesh, weight_s, weight_i, markers)
+    deformed_mesh = minimize(A, b, markers)
+
+    for weight_c in np.linspace(1.0, 5000.0, 4):
+        closest_points = target_mesh.vertices[closest_point.get_closest_valid_points(tree, deformed_mesh, target_mesh)].flatten()
+        closest_points = set_marker_positions(closest_points, markers)
+        A_full, b_full = create_full_matrix(source_mesh, weight_s, weight_i, weight_c, closest_points, markers)
+
+        deformed_mesh = minimize(A_full, b_full, markers)
+
+
+def minimize(A, b, markers, save_mesh=True):
     start = timer()
-    x = sparse.linalg.lsqr(A, c, x0=all_triangles, show=True)[0]
+    x_0 = np.append(source_mesh.vertices.flatten(),
+                    [calc_normal(source_mesh.vertices[source_mesh.faces[triangle]])[3]
+                    for triangle in range(source_mesh.num_faces)])
+    x_0 = set_marker_positions(x_0, markers)
+
+    x = sparse.linalg.lsqr(A, b, x0=x_0, show=True)[0]
     x = set_marker_positions(x, markers)
 
     end = timer()
     print(end - start)
-    deformed_mesh = pymesh.form_mesh(x[:source_mesh.num_vertices*3].reshape((source_mesh.num_vertices, 3)), source_mesh.faces, source_mesh.voxels)
-    pymesh.save_mesh("source_mesh_deformed.obj", deformed_mesh)
-    # tree = closest_point.create_tree(target_mesh)
+
+    deformed_mesh = pymesh.form_mesh(x[:source_mesh.num_vertices * 3].reshape((source_mesh.num_vertices, 3)),
+                                     source_mesh.faces, source_mesh.voxels)
+    deformed_mesh.add_attribute("vertex_normal")
+    deformed_mesh.enable_connectivity()
+
+    if save_mesh:
+        pymesh.save_mesh("source_mesh_deformed.obj", deformed_mesh)
+
+    return deformed_mesh
 
 
 def load_meshes(source, target):

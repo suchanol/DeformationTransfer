@@ -19,6 +19,8 @@ def get_closest_valid_point(tree, source_mesh, target_mesh, vertex_idx):
         dist, idx = tree.query(vertex, k=index)
         if index > 1:
             idx = idx[index - 1]
+        if idx >= target_mesh.num_vertices:
+            return 0
         adj_face_normals = target_mesh.get_face_attribute("face_normal")[target_mesh.get_vertex_adjacent_faces(idx)]
         if is_valid(vertex_normal, *adj_face_normals):
             return idx
@@ -35,6 +37,6 @@ def is_valid(vertex_normal, *triangle_normals):
 
 # get closest valid points for all vertices of a source_mesh
 def get_closest_valid_points(tree, source_mesh, target_mesh):
-    return [get_closest_valid_point(tree, source_mesh, target_mesh, idx) for idx in np.arange(source_mesh.num_vertices)]
+    return [get_closest_valid_point(tree, source_mesh, target_mesh, idx) for idx in range(source_mesh.num_vertices)]
 
 

@@ -4,9 +4,16 @@ from vertex_formulation import *
 import click
 
 
+def create_full_matrix(mesh, weight_s, weight_i, weight_c, closest_points, marker):
+    A_s_i, b_s_i = create_smoothness_identity_matrix(mesh, weight_s, weight_i, marker)
+
+    A_closest = sparse.hstack([weight_c * sparse.identity((3*mesh.num_vertices)), sparse.csc_matrix((3*mesh.num_vertices, 3*mesh.num_faces))])
+    b_closest = weight_c * closest_points
+    return sparse.vstack([A_s_i, A_closest]), np.hstack([b_s_i, b_closest])
+
+
 def create_smoothness_identity_matrix(mesh, weight_s, weight_i, marker):
     transformations = [get_transformation_matrix(mesh, face) for face in range(mesh.num_faces)]
-    A_marker, b_marker = get_marker_matrix(mesh, marker)
     A_smoothness = sparse.dok_matrix((mesh.num_faces*3*9, 3*(mesh.num_vertices + mesh.num_faces)))
     b_smoothness = np.zeros((mesh.num_faces * 9 * 3,))
     A_identity = sparse.dok_matrix((mesh.num_faces*9, 3*(mesh.num_vertices + mesh.num_faces)))
@@ -19,18 +26,6 @@ def create_smoothness_identity_matrix(mesh, weight_s, weight_i, marker):
     A = sparse.vstack([A_smoothness.tocsr(), A_identity.tocsr()])
     b = np.hstack([b_smoothness, b_identity])
     return A, b
-
-
-def get_marker_matrix(mesh, marker):
-    A_marker = sparse.dok_matrix((marker.shape[0]*3, 3*(mesh.num_vertices + mesh.num_faces)))
-    b_marker = np.zeros((A_marker.shape[0], ))
-    for i, m in enumerate(marker):
-        idx = 3*m[0]
-        target_position = m[1]
-        for j in range(3):
-            A_marker[3*i + j, idx + j] = 1000000
-            b_marker[3*i + j] = 1000000*target_position[j]
-    return A_marker.tocsr(), b_marker
 
 
 def set_smoothness_term(A, b, mesh, face, transformations, weight_s, marker):
