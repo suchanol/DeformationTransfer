@@ -12,9 +12,9 @@ def find_triangle_fan(vi, mesh):
 # load the animation .obj files into a list
 def load_deformation(n, name):
     result = []
-    for i in range(1, n + 1):
+    # for i in range(1, n + 1):
         # result.append(pymesh.load_mesh("{}-{:02d}.obj".format(name, i)))
-        result.append(pymesh.load_mesh(name))
+    result.append(pymesh.load_mesh(name))
     return result
 
 
@@ -38,9 +38,11 @@ def find_triangle_matrix(mesh):
     V_t_inv_matrix = scipy.linalg.block_diag(*V_t_inv)
     Q_matrix = find_realignment_Q_matrix(len(V) // 3)
     M_matrix = find_vector_to_point_matrix(len(V))
+    Q_tilde_matrix = find_realignment_Q_tilde_matrix(len(V) // 3)
     # result = BQM(Q^)DP
-    result = V_t_inv_matrix @ Q_matrix @ M_matrix
+    result = V_t_inv_matrix @ Q_matrix @ M_matrix @ Q_tilde_matrix
     return result
+
 
 # the original matrix uses v1 v2 v3 which are differences of points, now function inverses the process
 def find_vector_to_point_matrix(n):
@@ -51,6 +53,23 @@ def find_vector_to_point_matrix(n):
     M = scipy.linalg.block_diag(*ms)
     return M
 
+def find_realignment_Q_tilde_matrix(n):
+    lines = []
+    for i in range(0, 12):
+        line = np.zeros(12)
+        if i % 3 == 0:
+            line[i//3] = 1
+        if i % 3 == 1:
+            line[(i//3)+4] = 1
+        if i % 3 == 2:
+            line[(i//3)+8] = 1
+        lines.append(line)
+    q = np.array(lines)
+    qs = []
+    for i in range(0, n):
+        qs.append(q)
+    Q = scipy.linalg.block_diag(*qs)
+    return Q
 
 # the vertices are given in the form of (v1x, v1y, v1z, v2x......v4z) for each triangle change it to (v1x, v2x, v3x,
 # v4x...)
