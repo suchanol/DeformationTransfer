@@ -13,7 +13,7 @@ def find_triangle_fan(vi, mesh):
 def load_deformation(n, name):
     result = []
     # for i in range(1, n + 1):
-        # result.append(pymesh.load_mesh("{}-{:02d}.obj".format(name, i)))
+    # result.append(pymesh.load_mesh("{}-{:02d}.obj".format(name, i)))
     result.append(pymesh.load_mesh(name))
     return result
 
@@ -36,11 +36,45 @@ def find_triangle_matrix(mesh):
     V_t = [(v.transpose()) for v in V]
     V_t_inv = [(np.linalg.inv(v_t)) for v_t in V_t]
     V_t_inv_matrix = scipy.linalg.block_diag(*V_t_inv)
-    Q_matrix = find_realignment_Q_matrix(len(V) // 3)
-    M_matrix = find_vector_to_point_matrix(len(V))
-    Q_tilde_matrix = find_realignment_Q_tilde_matrix(len(V) // 3)
+    Q_matrix = find_realignment_Q_matrix(mesh.num_faces // 3)
+    M_matrix = find_vector_to_point_matrix(mesh.num_faces)
+    Q_tilde_matrix = find_realignment_Q_tilde_matrix(mesh.num_faces // 3)
+    D_matrix = find_vertex_correlation_matrix(mesh)
     # result = BQM(Q^)DP
-    result = V_t_inv_matrix @ Q_matrix @ M_matrix @ Q_tilde_matrix
+    result = V_t_inv_matrix @ Q_matrix @ M_matrix @ Q_tilde_matrix @ D_matrix
+    return result
+
+
+def find_vertex_correlation_matrix(mesh):
+    triangles = [t for t in mesh.faces]  # list of vertices index
+    D = np.zeros([4 * len(triangles), 4 * len(triangles)])
+    for i in range(0, len(triangles)):
+        for v_index in triangles[i]:
+            neighbors = find_neighbor(triangles, v_index)
+            for n in neighbors:
+                adiacent_triangle = find_triangle(triangles, n)
+            if not len(adiacent_triangle) == 0:
+                for t_index in adiacent_triangle:
+                    if v_index == t_index:
+                        D[4 * i][4 * t_index] = 1
+                        D[4 * i + 1][4 * t_index + 1] = 1
+                        D[4 * i + 2][4 * t_index + 2] = 1
+                        D[4 * i + 3][4 * t_index + 3] = 1
+    return D
+
+def find_neighbor(List, vi):
+    result = []
+    for triangle in List:
+        for i in triangle:
+            if vi == i:
+                result.append(triangle)
+                break
+    return result
+def find_triangle(List, t):
+    result = []
+    for i in range(0, len(List)):
+        if np.array_equal(t, List[i]):
+            result.append(i)
     return result
 
 
@@ -53,16 +87,17 @@ def find_vector_to_point_matrix(n):
     M = scipy.linalg.block_diag(*ms)
     return M
 
+
 def find_realignment_Q_tilde_matrix(n):
     lines = []
     for i in range(0, 12):
         line = np.zeros(12)
         if i % 3 == 0:
-            line[i//3] = 1
+            line[i // 3] = 1
         if i % 3 == 1:
-            line[(i//3)+4] = 1
+            line[(i // 3) + 4] = 1
         if i % 3 == 2:
-            line[(i//3)+8] = 1
+            line[(i // 3) + 8] = 1
         lines.append(line)
     q = np.array(lines)
     qs = []
@@ -70,6 +105,7 @@ def find_realignment_Q_tilde_matrix(n):
         qs.append(q)
     Q = scipy.linalg.block_diag(*qs)
     return Q
+
 
 # the vertices are given in the form of (v1x, v1y, v1z, v2x......v4z) for each triangle change it to (v1x, v2x, v3x,
 # v4x...)
@@ -115,4 +151,4 @@ def main(source, deform_s, target):
 
 
 if __name__ == '__main__':
-    main("horse_ref_decimate.obj", (2, "res/horse-gallop/horse-gallop-01_decimated.obj"), "camel_ref_decimate.obj")
+    main("horse_ref_decimate.obj", (2, "res/horse-gallop/horse-gallop-01_decimated.obj"), "res/cube.obj")
