@@ -51,14 +51,14 @@ def find_vertex_correlation_matrix(mesh):
         t_4 = calc_normal(mesh.vertices[triangle])
         vertices.append(t_4)
         points.append(t_4[3])
-    D = np.zeros([3 * len(points), 4 * 3 * mesh.num_faces])
+    D = np.zeros([4 * 3 * mesh.num_faces, 3 * len(points)])
     for i in range(0, len(points)):
         for p in points[i]:
             for j in range(0, len(vertices)):
                 if (points[i] == vertices[j]).all():
-                    D[3*i][4*j] = 1
-                    D[(3*i)+1][(4*3*j)+1] = 1
-                    D[(3*i)+2][(4*3*j)+2] = 1
+                    D[3*j][4*i] = 1
+                    D[(3*j)+1][(4*3*i)+1] = 1
+                    D[(3*j)+2][(4*3*i)+2] = 1
     return D
 
 
@@ -143,8 +143,8 @@ def find_target_trans_matrix(mesh):
     print(Q_tilde_matrix.shape)
     D_matrix = find_vertex_correlation_matrix(mesh)
     print(D_matrix.shape)
-    # result = B_matrix @ Q_matrix @ M_matrix @ Q_tilde_matrix @ D_matrix
-    # return result
+    result = B_matrix @ Q_matrix @ M_matrix @ Q_tilde_matrix @ D_matrix
+    return result
 
     # to be calculated |S - T| where T is given by a combination of matrices B Q M D P
     # T = BQMQ^DP
