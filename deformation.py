@@ -31,36 +31,36 @@ def find_source_trans_matrix(mesh, deform):
 
 
 def find_triangle_matrix(mesh):
-    # B = V^(-t)
+    # B = V^(-t) in diagonal form
+    # 3 equal B for every triangle
     V = [(triangle3_to_matrix(mesh.vertices[triangle])) for triangle in mesh.faces]
     V_t = [(v.transpose()) for v in V]
     V_t_inv = [(np.linalg.inv(v_t)) for v_t in V_t]
-    V_t_inv_matrix = scipy.linalg.block_diag(*V_t_inv)
-    Q_matrix = find_realignment_Q_matrix(mesh.num_faces // 3)
-    M_matrix = find_vector_to_point_matrix(mesh.num_faces)
-    Q_tilde_matrix = find_realignment_Q_tilde_matrix(mesh.num_faces // 3)
-    D_matrix = find_vertex_correlation_matrix(mesh)
-    # result = BQM(Q^)DP
-    result = V_t_inv_matrix @ Q_matrix @ M_matrix @ Q_tilde_matrix @ D_matrix
-    return result
+    bs = []
+    for b in V_t_inv:
+        for i in range(0, 3):
+            bs.append(b)
+    B = scipy.linalg.block_diag(*bs)
+    return B
 
 
 def find_vertex_correlation_matrix(mesh):
-    triangles = [t for t in mesh.faces]  # list of vertices index
-    D = np.zeros([4 * len(triangles), 4 * len(triangles)])
-    for i in range(0, len(triangles)):
-        for v_index in triangles[i]:
-            neighbors = find_neighbor(triangles, v_index)
-            for n in neighbors:
-                adiacent_triangle = find_triangle(triangles, n)
-            if not len(adiacent_triangle) == 0:
-                for t_index in adiacent_triangle:
-                    if v_index == t_index:
-                        D[4 * i][4 * t_index] = 1
-                        D[4 * i + 1][4 * t_index + 1] = 1
-                        D[4 * i + 2][4 * t_index + 2] = 1
-                        D[4 * i + 3][4 * t_index + 3] = 1
+    points = [t for t in mesh.vertices]
+    vertices = []
+    for triangle in mesh.faces:
+        t_4 = calc_normal(mesh.vertices[triangle])
+        vertices.append(t_4)
+        points.append(t_4[3])
+    D = np.zeros([3 * len(points), 4 * 3 * mesh.num_faces])
+    for i in range(0, len(points)):
+        for p in points[i]:
+            for j in range(0, len(vertices)):
+                if (points[i] == vertices[j]).all():
+                    D[3*i][4*j] = 1
+                    D[(3*i)+1][(4*3*j)+1] = 1
+                    D[(3*i)+2][(4*3*j)+2] = 1
     return D
+
 
 def find_neighbor(List, vi):
     result = []
@@ -70,6 +70,8 @@ def find_neighbor(List, vi):
                 result.append(triangle)
                 break
     return result
+
+
 def find_triangle(List, t):
     result = []
     for i in range(0, len(List)):
@@ -87,7 +89,8 @@ def find_vector_to_point_matrix(n):
     M = scipy.linalg.block_diag(*ms)
     return M
 
-
+# the vertices are given in the form of (v1x, v2x, v3x, v1y......v4z) for each triangle change it to (v1x, v2x, v3x,
+# v4x...)
 def find_realignment_Q_tilde_matrix(n):
     lines = []
     for i in range(0, 12):
@@ -128,11 +131,23 @@ def find_realignment_Q_matrix(n):
     return Q
 
 
-def find_target_trans_matrix(target_mesh):
-    V_t_inv = find_triangle_matrix(target_mesh)
+def find_target_trans_matrix(mesh):
+    print(mesh.num_faces)
+    B_matrix = find_triangle_matrix(mesh)
+    print(B_matrix.shape)
+    Q_matrix = find_realignment_Q_matrix(mesh.num_faces)
+    print(Q_matrix.shape)
+    M_matrix = find_vector_to_point_matrix(mesh.num_faces*3)
+    print(M_matrix.shape)
+    Q_tilde_matrix = find_realignment_Q_tilde_matrix(mesh.num_faces)
+    print(Q_tilde_matrix.shape)
+    D_matrix = find_vertex_correlation_matrix(mesh)
+    print(D_matrix.shape)
+    # result = B_matrix @ Q_matrix @ M_matrix @ Q_tilde_matrix @ D_matrix
+    # return result
 
     # to be calculated |S - T| where T is given by a combination of matrices B Q M D P
-    # T = BQMQ^(-1)DP
+    # T = BQMQ^DP
     # P is the vector of the unknown points of the transformed target mesh
     # Q is a re-arrangement matrix to change the order of the unknown ( to facilitate calculation only) same for Q^(-1)
     # D is the matrix of vertices correlation
@@ -146,7 +161,9 @@ def main(source, deform_s, target):
     source_mesh = pymesh.load_mesh(source)
     target_mesh = pymesh.load_mesh(target)
     source_deform_matrix = find_source_trans_matrix(source_mesh, source_deforms[0])
+    source_deform_vector = np.concatenate(source_deform_matrix, axis=None)
     target_deform_matrix = find_target_trans_matrix(target_mesh)
+    # scipy.sparse.linalg.lsqr(target_deform_matrix, source_deform_matrix)
     return
 
 
