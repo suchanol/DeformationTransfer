@@ -1,97 +1,43 @@
-import pymesh
+import correspondence_equations as eqns
 import closest_point
-from corr_helper import *
-from vertex_formulation import *
+import pymesh
+import numpy as np
+from scipy import sparse
+import scipy.sparse.linalg as spla
+import vertex_formulation as vert
+from functools import reduce
 from timeit import default_timer as timer
-import scipy.sparse.linalg
-import corres_resolve
+import correspondence_resolve as resolve
 
-source_mesh = None
-target_mesh = None
-
-
-def main(source, target):
+def main(file_source_mesh, file_target_mesh, file_markers):
     # load meshes
-    load_meshes(source, target)
-    assert source_mesh is not None and target_mesh is not None
+    source_mesh = pymesh.load_mesh(file_source_mesh)
+    target_mesh = pymesh.load_mesh(file_target_mesh)
 
-    markers = load_markers("default.cons")
-
-    tree = closest_point.create_tree(target_mesh)
-    deformed_mesh = solve_correspondence_problem(tree, markers)
-    corres_resolve.compute_pairs("face.corres", deformed_mesh, target_mesh)
-
-
-def solve_correspondence_problem(tree, markers):
-    weight_s = 1.0
-    weight_i = 0.001
-
-    A, b = create_smoothness_identity_matrix(source_mesh, weight_s, weight_i, markers)
-    deformed_mesh = minimize(A, b, markers)
-
-    for weight_c in np.linspace(1.0, 5000.0, 4):
-        closest_points = target_mesh.vertices[closest_point.get_closest_valid_points(tree, deformed_mesh, target_mesh)].flatten()
-        closest_points = set_marker_positions(closest_points, markers)
-        A_full, b_full = create_full_matrix(source_mesh, weight_s, weight_i, weight_c, closest_points, markers)
-
-        deformed_mesh = minimize(A_full, b_full, markers)
-
-    deformed_mesh.add_attribute("face_centroid")
-    deformed_mesh.add_attribute("face_normal")
-
-    return deformed_mesh
-
-
-def minimize(A, b, markers, save_mesh=True):
-    start = timer()
-    x_0 = np.append(source_mesh.vertices.flatten(),
-                    [calc_normal(source_mesh.vertices[source_mesh.faces[triangle]])[3]
-                    for triangle in range(source_mesh.num_faces)])
-    x_0 = set_marker_positions(x_0, markers)
-
-    x = sparse.linalg.lsqr(A, b, x0=x_0, show=True)[0]
-    x = set_marker_positions(x, markers)
-
-    end = timer()
-    print(end - start)
-
-    deformed_mesh = pymesh.form_mesh(x[:source_mesh.num_vertices * 3].reshape((source_mesh.num_vertices, 3)),
-                                     source_mesh.faces, source_mesh.voxels)
-    deformed_mesh.add_attribute("vertex_normal")
-    deformed_mesh.enable_connectivity()
-
-    if save_mesh:
-        pymesh.save_mesh("source_mesh_deformed.obj", deformed_mesh)
-
-    return deformed_mesh
-
-
-def load_meshes(source, target):
-    global source_mesh, target_mesh
-    source_mesh = pymesh.load_mesh(source)
-    target_mesh = pymesh.load_mesh(target)
-
-    # enable mesh connectivity to get adjacency information for vertices/faces/voxels
     source_mesh.enable_connectivity()
     target_mesh.enable_connectivity()
 
     source_mesh.add_attribute("vertex_normal")
 
+    target_mesh.add_attribute("vertex_normal")
     target_mesh.add_attribute("face_normal")
     target_mesh.add_attribute("face_centroid")
 
+    markers = load_markers(file_markers, target_mesh)
+    tree = closest_point.create_tree(target_mesh)
+    start_time = timer()
+    deformed_mesh = pymesh.load_mesh("full_deformed_mesh.obj")
+    #deformed_mesh = solve_correspondence_problem(tree, source_mesh, target_mesh, markers)
+    deformed_mesh.add_attribute("face_normal")
+    deformed_mesh.add_attribute("face_centroid")
 
-def set_marker_positions(x, marker):
-    y = x.copy()
-    for m in marker:
-        idx = 3 * m[0]
-        target_position = m[1]
-        for j in range(3):
-            y[idx + j] = target_position[j]
-    return y
+    print("compute correspondent pairs")
+    pairs = resolve.compute_pairs("faces.corres", deformed_mesh, target_mesh)
 
+    end_time = timer()
+    print("Zeit", end_time - start_time)
 
-def load_markers(file):
+def load_markers(file, target_mesh):
     m = []
     with open(file) as markers:
         markers.readline()
@@ -103,5 +49,56 @@ def load_markers(file):
     return np.array(m)
 
 
+def set_marker_positions(x, markers):
+    new_x = x.copy()
+    new_x[(markers[:, 0][:, np.newaxis]*3 + np.arange(3)[np.newaxis, :]).flatten().astype(int)] \
+        = reduce(np.append, markers[:, 1])
+    return new_x
+
+
+def solve_correspondence_problem(tree, source_mesh, target_mesh, markers):
+    print("start phase 1 of the correspondence problem")
+    Q_smooth, c_smooth = eqns.create_smoothness_matrix(source_mesh, markers, np.arange(source_mesh.num_faces))
+    Q_identity, c_identity = eqns.create_identity_matrix(source_mesh, markers, np.arange(source_mesh.num_faces))
+    Q = sparse.vstack((1.0 * Q_smooth, 0.001 * Q_identity))
+    c = np.hstack((1.0 * c_smooth, 0.001 * c_identity))
+
+    """x0 = np.append(source_mesh.vertices.flatten(), vert.calc_normal(source_mesh.vertices[source_mesh.faces]))
+    x0 = set_marker_positions(x0, markers)
+    x = spla.lsqr(Q, c, x0=x0, show=True)[0]
+    x = set_marker_positions(x, markers)
+
+    deformed_mesh = pymesh.form_mesh(x[:source_mesh.num_vertices * 3].reshape((source_mesh.num_vertices, 3)),
+                                     source_mesh.faces)
+    deformed_mesh.enable_connectivity()
+    deformed_mesh.add_attribute("vertex_normal")
+    pymesh.save_mesh("predeformed_mesh.obj", deformed_mesh)"""
+    deformed_mesh = pymesh.load_mesh("deformed_mesh.obj")
+    deformed_mesh.add_attribute("vertex_normal")
+    x = np.append(deformed_mesh.vertices.flatten(), vert.calc_normal(deformed_mesh.vertices[deformed_mesh.faces]))
+    x = set_marker_positions(x, markers)
+
+    print("start phase 2 of the correspondence problem")
+    for weight_c in np.linspace(1.0, 5000.0, 4):
+        print("closest points with weight_c: ", weight_c)
+        closest_points = closest_point.get_closest_valid_points(tree, deformed_mesh, target_mesh)
+        Q_close, c_close = eqns.create_closest_points_matrix(source_mesh, np.arange(source_mesh.num_vertices),
+                                                             target_mesh.vertices[closest_points], markers)
+
+        Q = sparse.vstack((Q, weight_c * Q_close))
+        c = np.hstack((c, weight_c * c_close))
+        x = spla.lsqr(Q, c, x0=x, show=True)[0]
+        x = set_marker_positions(x, markers)
+
+        deformed_mesh = pymesh.form_mesh(x[:source_mesh.num_vertices * 3].reshape((source_mesh.num_vertices, 3)),
+                                         source_mesh.faces)
+        deformed_mesh.enable_connectivity()
+        deformed_mesh.add_attribute("vertex_normal")
+
+    pymesh.save_mesh("full_deformed_mesh.obj", deformed_mesh)
+
+    return deformed_mesh
+
+
 if __name__ == '__main__':
-    main("horse_ref_decimate.obj", "camel_ref_decimate.obj")
+    main("../DeformationTransfer/horse_ref.obj", "../DeformationTransfer/camel_ref.obj", "../DeformationTransfer/horse_camel.cons")
