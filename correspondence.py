@@ -37,6 +37,7 @@ def main(file_source_mesh, file_target_mesh, file_markers):
     end_time = timer()
     print("Zeit", end_time - start_time)
 
+
 def load_markers(file, target_mesh):
     m = []
     with open(file) as markers:
@@ -60,12 +61,12 @@ def solve_correspondence_problem(tree, source_mesh, target_mesh, markers):
     print("start phase 1 of the correspondence problem")
     Q_smooth, c_smooth = eqns.create_smoothness_matrix(source_mesh, markers, np.arange(source_mesh.num_faces))
     Q_identity, c_identity = eqns.create_identity_matrix(source_mesh, markers, np.arange(source_mesh.num_faces))
-    Q = sparse.vstack((1.0 * Q_smooth, 0.001 * Q_identity))
-    c = np.hstack((1.0 * c_smooth, 0.001 * c_identity))
+    Q = sparse.vstack((1. * Q_smooth, 0.001 * Q_identity))
+    c = np.hstack((1. * c_smooth, 0.001 * c_identity))
 
     x0 = np.append(source_mesh.vertices.flatten(), vert.calc_normal(source_mesh.vertices[source_mesh.faces]))
     x0 = set_marker_positions(x0, markers)
-    x = spla.lsqr(Q, c, x0=x0, show=True)[0]
+    x = spla.lsqr(Q, c, x0=x0, show=False)[0]
     x = set_marker_positions(x, markers)
 
     deformed_mesh = pymesh.form_mesh(x[:source_mesh.num_vertices * 3].reshape((source_mesh.num_vertices, 3)),
@@ -88,7 +89,7 @@ def solve_correspondence_problem(tree, source_mesh, target_mesh, markers):
 
         Q = sparse.vstack((Q, weight_c * Q_close))
         c = np.hstack((c, weight_c * c_close))
-        x = spla.lsqr(Q, c, x0=x, show=True)[0]
+        x = spla.lsqr(Q, c, x0=x, show=False)[0]
         x = set_marker_positions(x, markers)
 
         deformed_mesh = pymesh.form_mesh(x[:source_mesh.num_vertices * 3].reshape((source_mesh.num_vertices, 3)),
@@ -102,4 +103,4 @@ def solve_correspondence_problem(tree, source_mesh, target_mesh, markers):
 
 
 if __name__ == '__main__':
-    main("horse_ref.obj", "camel_ref.obj", "horse_camel.cons")
+    main("horse_ref_decimate.obj", "camel_ref_decimate.obj", "default.cons")
