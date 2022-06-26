@@ -26,8 +26,8 @@ def main(file_source_mesh, file_target_mesh, file_markers):
     markers = load_markers(file_markers, target_mesh)
     tree = closest_point.create_tree(target_mesh)
     start_time = timer()
-    deformed_mesh = pymesh.load_mesh("full_deformed_mesh.obj")
-    #deformed_mesh = solve_correspondence_problem(tree, source_mesh, target_mesh, markers)
+    #deformed_mesh = pymesh.load_mesh("full_deformed_mesh.obj")
+    deformed_mesh = solve_correspondence_problem(tree, source_mesh, target_mesh, markers)
     deformed_mesh.add_attribute("face_normal")
     deformed_mesh.add_attribute("face_centroid")
 
@@ -63,7 +63,7 @@ def solve_correspondence_problem(tree, source_mesh, target_mesh, markers):
     Q = sparse.vstack((1.0 * Q_smooth, 0.001 * Q_identity))
     c = np.hstack((1.0 * c_smooth, 0.001 * c_identity))
 
-    """x0 = np.append(source_mesh.vertices.flatten(), vert.calc_normal(source_mesh.vertices[source_mesh.faces]))
+    x0 = np.append(source_mesh.vertices.flatten(), vert.calc_normal(source_mesh.vertices[source_mesh.faces]))
     x0 = set_marker_positions(x0, markers)
     x = spla.lsqr(Q, c, x0=x0, show=True)[0]
     x = set_marker_positions(x, markers)
@@ -72,9 +72,10 @@ def solve_correspondence_problem(tree, source_mesh, target_mesh, markers):
                                      source_mesh.faces)
     deformed_mesh.enable_connectivity()
     deformed_mesh.add_attribute("vertex_normal")
-    pymesh.save_mesh("predeformed_mesh.obj", deformed_mesh)"""
+    pymesh.save_mesh("predeformed_mesh.obj", deformed_mesh)
+    """
     deformed_mesh = pymesh.load_mesh("deformed_mesh.obj")
-    deformed_mesh.add_attribute("vertex_normal")
+    deformed_mesh.add_attribute("vertex_normal")"""
     x = np.append(deformed_mesh.vertices.flatten(), vert.calc_normal(deformed_mesh.vertices[deformed_mesh.faces]))
     x = set_marker_positions(x, markers)
 
@@ -101,4 +102,4 @@ def solve_correspondence_problem(tree, source_mesh, target_mesh, markers):
 
 
 if __name__ == '__main__':
-    main("../DeformationTransfer/horse_ref.obj", "../DeformationTransfer/camel_ref.obj", "../DeformationTransfer/horse_camel.cons")
+    main("horse_ref.obj", "camel_ref.obj", "horse_camel.cons")

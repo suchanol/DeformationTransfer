@@ -29,6 +29,7 @@ def triangle_to_matrix(triangles):
     return np.array([v2p.T - v1p.T, v3p.T - v1p.T, normal.T]).T
 
 
+# just testing
 if __name__ == '__main__':
     p1 = np.array([0, 0, 0])
     p2 = np.array([1, 0, 0])

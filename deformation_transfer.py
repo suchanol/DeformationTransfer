@@ -25,7 +25,7 @@ def main(file_source_mesh, file_target_mesh, *animations):
 
         transferred_mesh = pymesh.form_mesh(x[:target_mesh.num_vertices * 3].reshape((target_mesh.num_vertices, 3)),
                                      target_mesh.faces)
-        pymesh.save_mesh("new_nigger.obj", transferred_mesh)
+        pymesh.save_mesh(animation[:-4] + "_transfer.obj", transferred_mesh)
         print(transformations)
 
 
@@ -40,4 +40,4 @@ def load_correspondences(filename):
     return np.array(all_pairs)
 
 if __name__ == '__main__':
-    main("../DeformationTransfer/horse_ref.obj", "../DeformationTransfer/camel_ref.obj", "../DeformationTransfer/horse-01.obj")
+    main("horse_ref.obj", "camel_ref.obj", "horse-01.obj")
